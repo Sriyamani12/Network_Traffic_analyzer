@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="IronVeil Packet Analyzer - Capture, analyze, and save network traffic" />
+  <link rel="icon" href="/static/favicon.ico" />
+  <title>IronVeil</title>
+  <!-- Configure Tailwind to use class-based dark mode -->
+  <script>
+    tailwind = { config: { darkMode: 'class' } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <style>
+    /* Define CSS variables for the modal styling */
+    :root {
+      --modal-overlay-bg: rgba(255, 255, 255, 0.75);
+      --modal-bg: #ffffff;
+      --modal-text-color: #000000;
+      --modal-close-color: #000000;
+    }
+    /* Updated dark theme variables */
+    .dark {
+      --modal-overlay-bg: rgba(26, 32, 44, 0.75);
+      --modal-bg: #000;  /* modals now have a black background in dark mode */
+      --modal-text-color: #ffffff;
+      --modal-close-color: #ffffff;
+    }
+    
+    /* Global Styles */
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f7fafc;
+      color: #1a202c;
+    }
+    .dark body {
+      background-color: #1a202c;
+      color: #edf2f7;
+    }
+    /* Transition effects */
+    button, input, select {
+      transition: background-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    button:hover, .control-panel button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    input:focus, select:focus {
+      outline: none;
+      box-shadow: 0 0 5px rgba(66,153,225,0.6);
+      border-color: #4299e1;
+    }
+    /* Hamburger Button */
+    #hamburger {
+      cursor: pointer;
+      transition: transform 0.3s ease;
+      padding: 0.5rem;
+    }
+    #hamburger:hover {
+      transform: scale(1.1);
+    }
+    /* Sidebar Styles */
+    #sidebar {
+      position: fixed;
+      top: 0;
+      left: -250px;
+      width: 250px;
+      height: 100%;
+      background-color: #1a202c;
+      transition: left 0.3s ease;
+      z-index: 1000;
+      padding: 1rem;
+    }
+    #sidebar.translate-x-0 {
+      left: 0;
+    }
+    #sidebar input {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background-color: #333;
+      color: white;
+    }
+    #sidebar .close-btn {
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 1.5rem;
+      cursor: pointer;
+      position: absolute;
+      top: 10px;
+      right: 10px;
+    }
+    /* Modal Styles */
+    #detailModal {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: rgba(0, 0, 0, 0.7);
+      z-index: 2000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    #detailModal:not(.hidden) {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #detailModal .modal-content {
+      background-color: #2d3748;
+      color: #edf2f7;
+      border-radius: 8px;
+      max-width: 80%;
+      max-height: 80%;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+    }
+    .modal-header {
+      background-color: #4a5568;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .modal-header h3 {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+    .modal-header .close-btn {
+      background: transparent;
+      border: none;
+      color: #edf2f7;
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+    html:not(.dark) .modal-header .close-btn {
+      color: #1a202c !important;
+    }
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+    }
+    html:not(.dark) #detailModal .modal-content {
+      background-color: #edf2f7 !important;
+      color: #1a202c !important;
+    }
+    html:not(.dark) .modal-header {
+      background-color: #e2e8f0 !important;
+      color: #1a202c !important;
+    }
+    html:not(.dark) .modal-body {
+      background-color: #edf2f7 !important;
+      color: #1a202c !important;
+    }
+    /* Notification Styles */
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 10000;
+      padding: 1rem;
+      padding-right: 2.5rem;
+      background-color: #48BB78;
+      color: white;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      opacity: 0;
+      transform: translateY(-20px);
+      transition: opacity 0.5s, transform 0.5s;
+      overflow: hidden;
+    }
+    .notification.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .notification.hidden {
+      display: none;
+    }
+    .notification-close {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.6), rgba(255,255,255,0.3));
+      border: none;
+      border-radius: 50%;
+      width: 26px;
+      height: 26px;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      cursor: pointer;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+    .notification-close:hover {
+      transform: rotate(90deg) scale(1.1);
+      background: linear-gradient(135deg, rgba(255,255,255,0.8), rgba(255,255,255,0.5));
+    }
+    .notification-time-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 4px;
+      background: rgba(255,255,255,0.7);
+      width: 100%;
+    }
+    /* Header */
+    header {
+      padding: 1rem;
+      background-color: #2d3748;
+      text-align: center;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    header h2 {
+      margin: 0;
+      font-size: 2rem;
+    }
+    /* Control Panel */
+    .control-panel {
+      padding: 1rem;
+      background-color: #2d3748;
+      text-align: center;
+      position: relative;
+    }
+    .button-row {
+      display: flex;
+      align-items: center;
+    }
+    .left-buttons {
+      margin-right: auto;
+    }
+    .center-buttons {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      align-items: center;
+    }
+    .control-panel input,
+    .control-panel button,
+    .control-panel select {
+      padding: 0.5rem;
+      border: none;
+      border-radius: 4px;
+    }
+    .control-panel input {
+      background-color: #4a5568;
+      color: #fff;
+    }
+    .control-panel button.start {
+      background-color: #38a169;
+      color: #fff;
+      cursor: pointer;
+    }
+    .control-panel button.stop {
+      background-color: #e53e3e;
+      color: #fff;
+      cursor: pointer;
+    }
+    .control-panel button.save {
+      background-color: #4299e1;
+      color: #fff;
+      cursor: pointer;
+    }
+    .control-panel button.extra {
+      background-color: #4a5568;
+      color: #fff;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    .control-panel button.extra:hover {
+      background-color: #2d3748;
+    }
+    /* Updated Proto-Scheme Button */
+    .proto-scheme {
+      padding: 0.5rem 1.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 9999px; /* Creates a pill-shaped button */
+      background-image: linear-gradient(135deg, #6B46C1, #805AD5);
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background-image 0.2s ease;
+    }
+    html.dark .proto-scheme {
+      background-image: linear-gradient(135deg, #805AD5, #6B46C1);
+    }
+    .proto-scheme:hover {
+      transform: scale(1.05);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+    /* Proto-Scheme Dropdown */
+    #protoSchemeDropdown {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      left: 0;
+      width: 90vw;
+      max-width: 1000px;
+      padding: 0.75rem;
+      background-color: #fff;
+      color: #1a202c;
+      border: 1px solid #cbd5e0;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      z-index: 50;
+      display: none;
+    }
+    html.dark #protoSchemeDropdown {
+      background-color: #1a202c;
+      color: #edf2f7;
+      border-color: #4a5568;
+    }
+    #protoSchemeDropdown.show {
+      display: block;
+    }
+    #protoSchemeList {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 1rem;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      justify-items: start;
+    }
+    #protoSchemeList li {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.5rem;
+    }
+    /* Table Section */
+    .table-section {
+      background-color: #fff;
+    }
+    .dark .table-section {
+      background-color: #000 !important;
+      color: #fff !important;
+    }
+    .table-container {
+      max-height: 500px;
+      overflow-x: auto;
+      overflow-y: auto;
+      margin: 1rem;
+      border: 4px solid #718096;
+      position: relative;
+      background-color: #fff !important;
+    }
+    html.dark .table-container {
+      background-color: #000 !important;
+    }
+    table {
+      width: 100%;
+      table-layout: auto;
+      border-collapse: collapse;
+    }
+    td, th {
+      padding: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border: 1px solid #718096;
+    }
+    #packetTable tbody tr:hover {
+      background-color: #f0f0f0;
+      transition: background-color 0.3s ease;
+    }
+    @media (max-width: 768px) {
+      table {
+        font-size: 0.875rem;
+      }
+    }
+    thead {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: #2d3748;
+    }
+    thead::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      box-sizing: border-box;
+      border: 2px solid white;
+      z-index: 20;
+    }
+    html:not(.dark) thead::after {
+      border-color: #000 !important;
+    }
+    thead th {
+      padding: 8px;
+      border: 1px solid #718096;
+      border-bottom: none;
+      position: sticky;
+      top: 0;
+      z-index: 11;
+    }
+    .info-cell {
+      position: relative;
+      overflow: hidden;
+    }
+    .info-cell::before {
+      content: "";
+      position: absolute;
+      top: -3px;
+      left: -3px;
+      right: -3px;
+      bottom: -3px;
+      background: linear-gradient(135deg, #b0b0b0, #e0e0e0, #b0b0b0);
+      background-size: 400% 400%;
+      z-index: 1;
+      opacity: 0;
+      border-radius: inherit;
+    }
+    .info-cell:hover::before {
+      opacity: 1;
+      animation: metallicShine 2s ease-in-out infinite;
+    }
+    .info-cell::after {
+      content: "More Info";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      right: 3px;
+      bottom: 3px;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-style: italic;
+      color: white;
+      font-weight: bold;
+      font-size: 1rem;
+      z-index: 2;
+      transition: opacity 0.3s ease;
+      opacity: 0;
+    }
+    .info-cell:hover::after {
+      opacity: 1;
+    }
+    .wave-text {
+      display: inline-block;
+      font-style: italic;
+      background: linear-gradient(90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+      background-size: 300% auto;
+      background-clip: text;
+      -webkit-background-clip: text;
+      color: transparent;
+      animation: shimmer 4s linear infinite;
+    }
+    @keyframes shimmer {
+      0% { background-position: 300% center; }
+      100% { background-position: -300% center; }
+    }
+    @media (max-width: 640px) {
+      .control-panel {
+        flex-direction: column;
+      }
+      .table-container {
+        max-height: 300px;
+      }
+    }
+    ::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+    /* Default scrollbars for light theme */
+    ::-webkit-scrollbar-track {
+      background: #2d3748;
+      border-radius: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background-color: #718096;
+      border-radius: 6px;
+      border: 3px solid #2d3748;
+    }
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: #718096 #2d3748;
+    }
+    html:not(.dark) header {
+      background-color: #e2e8f0 !important;
+      color: #1a202c !important;
+    }
+    html:not(.dark) .control-panel {
+      background-color: #edf2f7 !important;
+      color: #1a202c !important;
+    }
+    html:not(.dark) .control-panel input,
+    html:not(.dark) .control-panel select {
+      background-color: #fff !important;
+      color: #1a202c !important;
+      border: 1px solid #cbd5e0;
+    }
+    html:not(.dark) #sidebar {
+      background-color: #e2e8f0 !important;
+    }
+    html:not(.dark) #sidebar h2,
+    html:not(.dark) #sidebar .close-btn,
+    html:not(.dark) #sidebar label {
+      color: #1a202c !important;
+    }
+    html:not(.dark) #sidebar input {
+      background-color: #fff !important;
+      color: #1a202c !important;
+      border: 1px solid #1a202c !important;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    html:not(.dark) #sidebar input:hover,
+    html:not(.dark) #sidebar input:focus {
+      border-color: #1a202c !important;
+      box-shadow: 0 0 5px rgba(26,32,44,0.5);
+    }
+    html:not(.dark) #sidebar:hover {
+      box-shadow: 0 4px 8px rgba(26,32,44,0.2);
+    }
+    html:not(.dark) .table-container {
+      border: 4px solid #cbd5e0 !important;
+      background-color: #fff !important;
+    }
+    html:not(.dark) thead {
+      background-color: #e2e8f0 !important;
+      color: #1a202c !important;
+    }
+    html:not(.dark) td,
+    html:not(.dark) th {
+      border-color: #cbd5e0 !important;
+    }
+    html:not(.dark) section.bg-gray-800 {
+      background-color: #edf2f7 !important;
+    }
+    html:not(.dark) .table-section {
+      background-color: #fff !important;
+    }
+    html:not(.dark) ::-webkit-scrollbar-track {
+      background: #e2e8f7;
+    }
+    html:not(.dark) ::-webkit-scrollbar-thumb {
+      background-color: #718096;
+    }
+    html:not(.dark) * {
+      scrollbar-color: #718096 #e2e8f7 !important;
+    }
+    @media (max-width: 1024px) {
+      .control-panel, .table-section {
+        padding: 1rem 0.75rem;
+      }
+    }
+    @media (max-width: 768px) {
+      .control-panel input,
+      .control-panel button,
+      .control-panel select {
+        font-size: 0.9rem;
+      }
+      table {
+        font-size: 0.85rem;
+      }
+    }
+    @media (max-width: 480px) {
+      .control-panel,
+      .table-section {
+        padding: 0.5rem;
+      }
+      .control-panel button,
+      .control-panel input,
+      .control-panel select {
+        font-size: 0.8rem;
+      }
+      table {
+        font-size: 0.75rem;
+      }
+      .table-container {
+        max-height: calc(100vh - 350px);
+      }
+    }
+    @media (min-width: 1920px) {
+      .control-panel, .table-section {
+        padding: 2rem;
+      }
+      .control-panel input,
+      .control-panel button,
+      .control-panel select {
+        font-size: 1.1rem;
+      }
+      table {
+        font-size: 1.1rem;
+      }
+      .table-container {
+        max-height: 600px;
+      }
+    }
+    @media (min-width: 2560px) {
+      .control-panel, .table-section {
+        padding: 3rem;
+      }
+      .control-panel input,
+      .control-panel button,
+      .control-panel select {
+        font-size: 1.3rem;
+      }
+      table {
+        font-size: 1.3rem;
+      }
+      .table-container {
+        max-height: 800px;
+      }
+    }
+    
+    /* --- Dark mode overrides for requested elements --- */
+    html.dark header {
+      background-color: #000 !important;
+      color: #fff !important;
+    }
+    html.dark .control-panel {
+      background-color: #000 !important;
+      color: #fff !important;
+    }
+    html.dark .table-section {
+      background-color: #000 !important;
+      color: #fff !important;
+    }
+    html.dark .table-container {
+      background-color: #000 !important;
+    }
+    html.dark thead {
+      background-color: #000 !important;
+      color: #fff !important;
+    }
+    html.dark #sidebar {
+      background-color: #000 !important;
+    }
+    html.dark #protoSchemeDropdown {
+      background-color: #000 !important;
+      color: #fff !important;
+      border-color: #fff !important;
+    }
+    html.dark #detailModal .modal-content {
+      background-color: #000 !important;
+      color: #fff !important;
+    }
+    html.dark #detailModal .modal-header {
+      background-color: #000 !important;
+      color: #fff !important;
+    }
+    /* Dark mode scrollbars: track black, thumb white */
+    html.dark ::-webkit-scrollbar-track {
+      background: #000 !important;
+    }
+    html.dark ::-webkit-scrollbar-thumb {
+      background-color: #fff !important;
+    }
+    html.dark * {
+      scrollbar-color: #fff #000 !important;
+    }
+    /* New rules for input hover/focus in dark mode */
+    html.dark .control-panel input,
+    html.dark .control-panel select,
+    html.dark #sidebar input {
+      background-color: #000 !important;
+      color: #fff !important;
+      border: 1px solid #fff !important;
+    }
+    html.dark .control-panel input:hover,
+    html.dark .control-panel select:hover,
+    html.dark #sidebar input:hover,
+    html.dark .control-panel input:focus,
+    html.dark .control-panel select:focus,
+    html.dark #sidebar input:focus {
+      box-shadow: 0 0 5px 2px #fff !important;
+      border-color: #fff !important;
+    }
+    /* --- End dark mode overrides --- */
+    
+    /* THEME TOGGLE: half black/white circle with rotation animation, border, and hover */
+    #themeToggle {
+      /* Override existing background color/classes */
+      background: conic-gradient(#000 0deg 180deg, #fff 180deg 360deg) !important;
+      background-color: transparent !important;
+      color: transparent !important;
+      border-radius: 50% !important;
+      font-size: 0 !important;
+      transition: transform 0.5s ease, box-shadow 0.5s ease;
+      border: 2px solid black; /* Black border for light theme */
+    }
+    /* Rotate 180° when .dark is active on <html> and use white border */
+    .dark #themeToggle {
+      transform: rotate(180deg);
+      border: 2px solid white;
+    }
+    /* Hover effect for the theme toggle button */
+    #themeToggle:hover {
+      transform: scale(1.1);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+    /* In dark mode, keep the rotation and scale up on hover */
+    .dark #themeToggle:hover {
+      transform: rotate(180deg) scale(1.1);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Updated Statistics Modal: Remove tinted/blurred background */
+    #statsModal {
+      background-color: transparent;
+    }
+    /* Add border for the Statistics Modal content */
+    #statsModal .modal-content {
+      border: 2px solid black; /* Default border for light theme */
+    }
+    .dark #statsModal .modal-content {
+      border: 2px solid white; /* White border for dark theme */
+    }
+  </style>
+</head>
+<body class="bg-white text-black dark:bg-black-900 dark:text-white">
+  <!-- Hamburger for mobile -->
+  <div id="hamburger" class="lg:hidden" onclick="toggleSidebar()">&#9776;</div>
+  
+  <!-- Sidebar -->
+  <div id="sidebar" class="transform -translate-x-full lg:translate-x-0">
+    <button class="close-btn" onclick="toggleSidebar()">×</button>
+    <h2 class="text-xl font-bold text-white p-4">Filter Options</h2>
+    <div class="p-4">
+      <div class="mb-4">
+        <label for="ipFilter" class="block text-white">Filter by IP:</label>
+        <input type="text" id="ipFilter" placeholder="Enter IP address" class="text-black" />
+      </div>
+      <div class="mb-4">
+        <label for="macFilter" class="block text-white">Filter by MAC Address:</label>
+        <input type="text" id="macFilter" placeholder="Enter MAC address" class="text-black" />
+      </div>
+      <div class="mb-4">
+        <label for="protocolFilter" class="block text-white">Filter by Protocol:</label>
+        <input type="text" id="protocolFilter" placeholder="Enter protocol" class="text-black" />
+      </div>
+      <div class="mb-4">
+        <label for="portFilter" class="block text-white">Filter by Port:</label>
+        <input type="text" id="portFilter" placeholder="Enter port" class="text-black" />
+      </div>
+      <div class="mb-4">
+        <label for="lengthFilter" class="block text-white">Filter by Length:</label>
+        <input type="text" id="lengthFilter" placeholder="Enter length" class="text-black" />
+      </div>
+      <button onclick="applyCustomFilter()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+        Apply Filters
+      </button>
+    </div>
+  </div>
+  
+  <!-- Detail Modal -->
+  <div id="detailModal" class="hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="text-xl">Packet Details</h3>
+        <button class="close-btn" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <pre id="detailContent" class="whitespace-pre-wrap text-sm"></pre>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Notification Element -->
+  <div id="notification" class="notification hidden">
+    <button id="notificationClose" class="notification-close">✕</button>
+    <div id="notificationContent"></div>
+    <div id="notificationTimeBar" class="notification-time-bar"></div>
+  </div>
+  
+  <!-- Statistics Modal (Graph Pop-Up) -->
+  <div id="statsModal"
+       class="hidden fixed inset-0 flex items-center justify-center z-50"
+       style="background-color: transparent;">
+    <!-- Modal container with flex layout and fixed height -->
+    <div class="modal-content p-4 rounded w-11/12 md:w-4/5 lg:w-2/3 flex flex-col"
+         style="background-color: var(--modal-bg) !important; color: var(--modal-text-color) !important; height: 90vh; overflow: hidden;">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl" style="color: var(--modal-text-color) !important;">Capture Statistics</h3>
+        <button onclick="closeStatsModal()" class="text-2xl"
+                style="color: var(--modal-close-color) !important;">&times;</button>
+      </div>
+      <!-- Chart container that fills remaining space -->
+      <div class="flex-1" style="position: relative;">
+        <canvas id="statsChart"
+                style="position: absolute; left: 0; top: 0; width: 100%; height: 100%;"></canvas>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Header -->
+  <header class="p-4 bg-gray-800 flex justify-center items-center">
+    <h2 class="text-2xl font-bold text-center">Packet Analyzer</h2>
+  </header>
+  
+  <!-- Control Panel Section -->
+  <section class="p-4 bg-white-800">
+    <div class="control-panel relative">
+      <!-- THEME TOGGLE BUTTON (unchanged HTML, new CSS for half-black/white, border, hover) -->
+      <button id="themeToggle" type="button" onclick="toggleTheme()" 
+              class="absolute top-2 right-2 w-10 h-10 bg-gray-600 text-white rounded-full flex items-center justify-center" 
+              title="Toggle Dark/Light Mode">
+        🌙
+      </button>
+      <div class="flex justify-center mb-1 gap-2">
+        <input type="text" id="packetCountInput" placeholder="Enter packet count" class="p-2 rounded bg-gray-700 text-white" />
+        <button type="button" onclick="resetDisplayFilters()" class="px-4 py-2 rounded bg-gray-500 text-white hover:bg-gray-600">
+          Reset Display Filter
+        </button>
+      </div>
+      <div class="button-row flex items-center">
+        <div class="left-buttons">
+          <button id="protoSchemeButton" type="button" class="proto-scheme" onclick="toggleProtoScheme()">
+            Protocol Scheme
+          </button>
+        </div>
+        <div class="center-buttons flex-1 flex justify-center items-center gap-2">
+          <button type="button" onclick="startCapture()" class="px-4 py-2 start rounded hover:bg-green-600 bg-green-500">
+            Start Capture
+          </button>
+          <button type="button" onclick="stopCapture()" class="px-4 py-2 stop rounded hover:bg-red-600 bg-red-500">
+            Stop Capture
+          </button>
+          <button type="button" onclick="refreshPage()" class="px-4 py-2 extra rounded">
+            Refresh
+          </button>
+          <button type="button" onclick="toggleSidebar()" class="px-4 py-2 extra rounded">
+            Display Filter
+          </button>
+          <button type="button" onclick="showStatistics()" class="px-4 py-2 extra rounded hover:bg-purple-600 bg-purple-500">
+            Statistics
+          </button>
+          <select id="file_format" class="p-2 rounded bg-gray-700 text-white">
+            <option value="json">JSON</option>
+            <option value="pcap">PCAP</option>
+            <option value="pdf">PDF</option>
+          </select>
+          <button type="button" onclick="saveCapture()" class="px-4 py-2 save rounded hover:bg-blue-600 bg-blue-500">
+            Save Capture
+          </button>
+        </div>
+      </div>
+      <!-- Proto-Scheme Dropdown -->
+      <div id="protoSchemeDropdown" class="hidden">
+        <ul id="protoSchemeList"></ul>
+      </div>
+      {% if filename %}
+      <div class="mt-4 text-center">
+        <p>
+          Capture saved successfully!
+          <a href="{{ url_for('download_file', filename=filename) }}" class="text-blue-400 hover:underline">Click here to download the log file</a>
+        </p>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+  
+  <!-- Table Section -->
+  <section class="table-section">
+    <div class="table-container">
+      <table id="packetTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Time</th>
+            <th>Length</th>
+            <th>Source IP</th>
+            <th>Source MAC</th>
+            <th>Source Port</th>
+            <th>Destination IP</th>
+            <th>Destination MAC</th>
+            <th>Destination Port</th>
+            <th>Protocol</th>
+            <th>Details</th>
+            <th>Info</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-waiting="true" class="bg-white border-b text-black">
+            <td class="p-2 border text-center" colspan="12">
+              <span class="wave-text">Waiting for packets...</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  
+  <script>
+    // Global variables for packet capture and Chart.js
+    let eventSource = null;
+    let packetLimit = null;
+    let capturedCount = 0;
+    let statsChart;
+    
+    // Distinct pastel colors for each protocol:
+    // 1) protocolColorMapping -> for Chart.js slices
+    // 2) protocolColors -> for table row backgrounds
+    const protocolColorMapping = {
+      "HTTP":    "#CCE4FF",
+      "HTTPS":   "#CCFFD9",
+      "SSH":     "#FFCCCC",
+      "FTP":     "#FFF5CC",
+      "DNS":     "#E5CCFF",
+      "ARP":     "#FFCCE5",
+      "ICMP":    "#F2F2F2",
+      "TCP":     "#D9CCFF",
+      "UDP":     "#CCFFFF",
+      "TLS":     "#CCFFF2",
+      "TLS V1.2":"#CCFFFC",
+      "POP3":    "#FFE5CC",
+      "POP3S":   "#FFDEB3",
+      "IMAP":    "#ECCEFF",
+      "IMAPS":   "#E0CCFF",
+      "SMTP":    "#FEF08A",
+      "TELNET":  "#F9FFCC",
+      "LDAP":    "#D1FAE5",
+      "LDAPS":   "#A7F3D0",
+      "PPTP":    "#FFCCE8",
+      "RDP":     "#FFDDDD",
+      "VNC":     "#FFB3B3",
+      "RTMP":    "#B3D1FF",
+      "XMPP":    "#B8CCFF",
+      "IRC":     "#CCE9FF",
+      "NNTP":    "#F3CCFF",
+      "SNMP":    "#EDEDED",
+      "DHCP":    "#FFF0CC",
+      "MDNS":    "#FFB3D9",
+      "LLMNR":   "#EACCFF",
+      "NBNS":    "#EFEFEF",
+      "NTP":     "#CCEFFF",
+      "SIP":     "#B3FFE7",
+      "RTP":     "#B3FFC2",
+      "RTCP":    "#C2FFB3",
+      "COAP":    "#FFF7CC",
+      "SFLOW":   "#CCF5FF",
+      "NETFLOW": "#B3E0FF",
+      "GTP":     "#E0FFCC",
+      "RADIUS":  "#D9FFCC",
+      "IPV4":    "#FFC9CC",
+      "IPV6":    "#FFF0B3",
+      "VLAN":    "#CCFFED",
+      "QUIC":    "#FFDECC"
+    };
+    
+    const protocolColors = {
+      "HTTP":    "bg-[#CCE4FF] text-black",
+      "HTTPS":   "bg-[#CCFFD9] text-black",
+      "SSH":     "bg-[#FFCCCC] text-black",
+      "FTP":     "bg-[#FFF5CC] text-black",
+      "DNS":     "bg-[#E5CCFF] text-black",
+      "ARP":     "bg-[#FFCCE5] text-black",
+      "ICMP":    "bg-[#F2F2F2] text-black",
+      "TCP":     "bg-[#D9CCFF] text-black",
+      "UDP":     "bg-[#CCFFFF] text-black",
+      "TLS":     "bg-[#CCFFF2] text-black",
+      "TLS V1.2":"bg-[#CCFFFC] text-black",
+      "POP3":    "bg-[#FFE5CC] text-black",
+      "POP3S":   "bg-[#FFDEB3] text-black",
+      "IMAP":    "bg-[#ECCEFF] text-black",
+      "IMAPS":   "bg-[#E0CCFF] text-black",
+      "SMTP":    "bg-[#FEF08A] text-black",
+      "TELNET":  "bg-[#F9FFCC] text-black",
+      "LDAP":    "bg-[#D1FAE5] text-black",
+      "LDAPS":   "bg-[#A7F3D0] text-black",
+      "PPTP":    "bg-[#FFCCE8] text-black",
+      "RDP":     "bg-[#FFDDDD] text-black",
+      "VNC":     "bg-[#FFB3B3] text-black",
+      "RTMP":    "bg-[#B3D1FF] text-black",
+      "XMPP":    "bg-[#B8CCFF] text-black",
+      "IRC":     "bg-[#CCE9FF] text-black",
+      "NNTP":    "bg-[#F3CCFF] text-black",
+      "SNMP":    "bg-[#EDEDED] text-black",
+      "DHCP":    "bg-[#FFF0CC] text-black",
+      "MDNS":    "bg-[#FFB3D9] text-black",
+      "LLMNR":   "bg-[#EACCFF] text-black",
+      "NBNS":    "bg-[#EFEFEF] text-black",
+      "NTP":     "bg-[#CCEFFF] text-black",
+      "SIP":     "bg-[#B3FFE7] text-black",
+      "RTP":     "bg-[#B3FFC2] text-black",
+      "RTCP":    "bg-[#C2FFB3] text-black",
+      "COAP":    "bg-[#FFF7CC] text-black",
+      "SFLOW":   "bg-[#CCF5FF] text-black",
+      "NETFLOW": "bg-[#B3E0FF] text-black",
+      "GTP":     "bg-[#E0FFCC] text-black",
+      "RADIUS":  "bg-[#D9FFCC] text-black",
+      "IPV4":    "bg-[#FFC9CC] text-black",
+      "IPV6":    "bg-[#FFF0B3] text-black",
+      "VLAN":    "bg-[#CCFFED] text-black",
+      "QUIC":    "bg-[#FFDECC] text-black"
+    };
+    
+    function getRowColorClasses(protocol) {
+      const normalized = protocol.toUpperCase();
+      return protocolColors[normalized] ? protocolColors[normalized].split(" ") : ["bg-white", "text-black"];
+    }
+    
+    function applyColorsToExistingRows() {
+      const rows = document.querySelectorAll("#packetTable tbody tr");
+      rows.forEach(row => {
+        if (row.cells.length > 9) {
+          const protocolCell = row.cells[9];
+          const protocolText = protocolCell.textContent.trim();
+          const classes = getRowColorClasses(protocolText);
+          row.className = "";
+          row.classList.add(...classes, "border-b");
+        }
+      });
+    }
+    
+    function showCaptureCompleteNotification(count) {
+      const notification = document.getElementById("notification");
+      const notificationContent = document.getElementById("notificationContent");
+      const notificationTimeBar = document.getElementById("notificationTimeBar");
+      notificationContent.textContent = `Capture complete: ${count} ${count === 1 ? 'packet' : 'packets'} captured.`;
+      notification.classList.remove("hidden");
+      void notification.offsetWidth;
+      notification.classList.add("show");
+    
+      notificationTimeBar.style.transition = "none";
+      notificationTimeBar.style.width = "100%";
+      void notificationTimeBar.offsetWidth;
+      notificationTimeBar.style.transition = "width 5s linear";
+      notificationTimeBar.style.width = "0%";
+    
+      const autoHideTimeout = setTimeout(() => {
+        hideNotification();
+      }, 5000);
+    
+      document.getElementById("notificationClose").onclick = function() {
+        clearTimeout(autoHideTimeout);
+        hideNotification();
+      };
+    }
+    
+    function hideNotification() {
+      const notification = document.getElementById("notification");
+      notification.classList.remove("show");
+      setTimeout(() => {
+        notification.classList.add("hidden");
+      }, 500);
+    }
+    
+    function startCapture() {
+      const count = document.getElementById("packetCountInput").value.trim();
+      capturedCount = 0;
+      packetLimit = parseInt(count, 10);
+      if (isNaN(packetLimit) || packetLimit <= 0) {
+        packetLimit = null;
+      }
+      fetch('/start_capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: count })
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log(data.status);
+        if (eventSource) { eventSource.close(); }
+        eventSource = new EventSource("/stream");
+        eventSource.onerror = function(event) {
+          console.error("Error in EventSource:", event);
+        };
+        eventSource.onmessage = function(event) {
+          const data = JSON.parse(event.data);
+          const tableBody = document.getElementById("packetTable").getElementsByTagName("tbody")[0];
+          if (tableBody.firstElementChild && tableBody.firstElementChild.dataset.waiting) {
+            tableBody.innerHTML = "";
+          }
+          const row = tableBody.insertRow(-1);
+          const protocol = data[9] || "";
+          const rowColorClasses = getRowColorClasses(protocol);
+          row.classList.add(...rowColorClasses, "border-b");
+          for (let i = 0; i < data.length; i++) {
+            const cell = row.insertCell();
+            cell.classList.add("p-2", "border");
+            cell.textContent = data[i];
+            if (i === 10) {
+              cell.style.cursor = "pointer";
+              cell.classList.add("info-cell");
+              cell.onclick = function() { showPacketDetails(data[0]); };
+            }
+          }
+          autoScrollTable();
+          if (packetLimit !== null) {
+            capturedCount++;
+            if (capturedCount >= packetLimit) {
+              eventSource.close();
+              showCaptureCompleteNotification(capturedCount);
+            }
+          }
+        };
+      })
+      .catch(error => console.error("Error starting capture:", error));
+    }
+    
+    function stopCapture() {
+      fetch('/stop_capture', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+          console.log(data.status);
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+        })
+        .catch(error => console.error("Error stopping capture:", error));
+    }
+    
+    function autoScrollTable() {
+      const tableContainer = document.querySelector(".table-container");
+      tableContainer.scrollTop = tableContainer.scrollHeight;
+    }
+    
+    function resetDisplayFilters() {
+      document.getElementById("ipFilter").value = "";
+      document.getElementById("macFilter").value = "";
+      document.getElementById("protocolFilter").value = "";
+      document.getElementById("portFilter").value = "";
+      document.getElementById("lengthFilter").value = "";
+      const rows = document.querySelectorAll("#packetTable tbody tr");
+      rows.forEach(row => row.style.display = "");
+    }
+    
+    function toggleSidebar() {
+      const sidebar = document.getElementById("sidebar");
+      sidebar.classList.toggle("translate-x-0");
+    }
+    
+    function applyCustomFilter() {
+      const ipValue = document.getElementById('ipFilter').value.trim().toLowerCase();
+      const macValue = document.getElementById('macFilter').value.trim().toLowerCase();
+      const protocolValue = document.getElementById('protocolFilter').value.trim().toLowerCase();
+      const portValue = document.getElementById('portFilter').value.trim().toLowerCase();
+      const lengthValue = document.getElementById('lengthFilter').value.trim().toLowerCase();
+      const rows = document.querySelectorAll("#packetTable tbody tr");
+      rows.forEach(row => {
+        const srcIp = row.cells[3].textContent.trim().toLowerCase();
+        const dstIp = row.cells[6].textContent.trim().toLowerCase();
+        const srcMac = row.cells[4].textContent.trim().toLowerCase();
+        const dstMac = row.cells[7].textContent.trim().toLowerCase();
+        const protocolText = row.cells[9].textContent.trim().toLowerCase();
+        const srcPort = row.cells[5].textContent.trim().toLowerCase();
+        const dstPort = row.cells[8].textContent.trim().toLowerCase();
+        const lengthText = row.cells[2].textContent.trim().toLowerCase();
+        const ipMatch = (ipValue === "" || srcIp.includes(ipValue) || dstIp.includes(ipValue));
+        const macMatch = (macValue === "" || srcMac.includes(macValue) || dstMac.includes(macValue));
+        const protocolMatch = (protocolValue === "" || protocolText.includes(protocolValue));
+        const portMatch = (portValue === "" || srcPort === portValue || dstPort === portValue);
+        const lengthMatch = (lengthValue === "" || lengthText === lengthValue || lengthText.includes(lengthValue));
+        row.style.display = (ipMatch && macMatch && protocolMatch && portMatch && lengthMatch) ? "" : "none";
+      });
+      toggleSidebar();
+    }
+    
+    function refreshPage() {
+      fetch("/refresh", { method: "POST" })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === "ok") {
+            const tableBody = document.getElementById("packetTable").getElementsByTagName("tbody")[0];
+            tableBody.innerHTML = `<tr data-waiting="true" class="bg-white border-b text-black">
+              <td class="p-2 border text-center" colspan="12">
+                <span class="wave-text">Waiting for packets...</span>
+              </td>
+            </tr>`;
+            document.getElementById("packetCountInput").value = "";
+            resetDisplayFilters();
+          }
+        })
+        .catch(error => console.error("Error:", error));
+    }
+    
+    function showPacketDetails(packetId) {
+      fetch("/packet_detail/" + packetId)
+        .then(response => response.json())
+        .then(data => {
+          if (data.detailed_info) {
+            const cleanInfo = data.detailed_info.replace(/#/g, "");
+            document.getElementById("detailContent").textContent = cleanInfo;
+            document.getElementById("detailModal").classList.remove("hidden");
+          } else {
+            alert("Error: " + data.error);
+          }
+        })
+        .catch(error => console.error("Error fetching packet details:", error));
+    }
+    
+    function closeModal() {
+      document.getElementById("detailModal").classList.add("hidden");
+    }
+    
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      if (document.documentElement.classList.contains('dark')) {
+        localStorage.setItem('theme', 'dark');
+        document.getElementById('themeToggle').textContent = "☀";
+      } else {
+        localStorage.setItem('theme', 'light');
+        document.getElementById('themeToggle').textContent = "🌙";
+      }
+    }
+    
+    function saveCapture() {
+      const fileFormat = document.getElementById("file_format").value;
+      let endpoint = "";
+      if (fileFormat === "pdf") {
+        endpoint = '/save_capture_pdf';
+      } else {
+        endpoint = `/save_capture/${fileFormat}`;
+      }
+      fetch(endpoint, { method: 'POST' })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error("Network response was not ok");
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = `capture.${fileFormat}`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch(error => console.error("Error saving capture as " + fileFormat + ":", error));
+    }
+    
+    function populateProtoScheme() {
+      const list = document.getElementById("protoSchemeList");
+      list.innerHTML = "";
+      for (const proto in protocolColors) {
+        const li = document.createElement("li");
+        // Create a color swatch
+        const swatch = document.createElement("div");
+        const colorClass = protocolColors[proto].split(" ")[0].replace("bg-[", "").replace("]", "");
+        swatch.style.width = "1.5rem";
+        swatch.style.height = "1.5rem";
+        swatch.style.borderRadius = "0.25rem";
+        swatch.style.backgroundColor = colorClass;
+        // Label text
+        const text = document.createElement("span");
+        text.textContent = proto;
+        li.appendChild(swatch);
+        li.appendChild(text);
+        list.appendChild(li);
+      }
+    }
+    
+    function toggleProtoScheme() {
+      const dropdown = document.getElementById("protoSchemeDropdown");
+      dropdown.classList.toggle("show");
+    }
+    
+    function showStatistics() {
+      fetch('/stats')
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById("statsModal").classList.remove("hidden");
+          const protocols = Object.keys(data.protocol_counts);
+          const counts = Object.values(data.protocol_counts);
+          if (statsChart) { statsChart.destroy(); }
+          const ctx = document.getElementById('statsChart').getContext('2d');
+          const rootStyles = getComputedStyle(document.documentElement);
+          const textColor = rootStyles.getPropertyValue('--modal-text-color').trim() || 'black';
+          
+          statsChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+              labels: protocols,
+              datasets: [{
+                label: 'Protocol Distribution',
+                data: counts,
+                backgroundColor: protocols.map(proto => {
+                  const normalized = proto.toUpperCase();
+                  return protocolColorMapping[normalized] || "#ffffff";
+                }),
+                borderColor: textColor,
+                borderWidth: 2
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                tooltip: {
+                  callbacks: {
+                    label: function(context) {
+                      const label = context.label || '';
+                      const value = context.parsed;
+                      const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                      const percentage = ((value / total) * 100).toFixed(1) + '%';
+                      return `${label}: ${value} (${percentage})`;
+                    }
+                  }
+                },
+                legend: { 
+                  position: 'bottom',
+                  labels: {
+                    color: textColor
+                  }
+                },
+                title: { 
+                  display: true,
+                  text: 'Protocol Distribution',
+                  color: textColor
+                }
+              }
+            }
+          });
+        })
+        .catch(error => console.error("Error fetching statistics:", error));
+    }
+    
+    function closeStatsModal() {
+      document.getElementById("statsModal").classList.add("hidden");
+    }
+    
+    // Global click listener to close pop-ups when clicking outside their content.
+    document.addEventListener('click', function(event) {
+      // For proto scheme dropdown:
+      const protoDropdown = document.getElementById("protoSchemeDropdown");
+      const protoButton = document.getElementById("protoSchemeButton");
+      if (protoDropdown.classList.contains("show") &&
+          !protoDropdown.contains(event.target) &&
+          !protoButton.contains(event.target)) {
+        protoDropdown.classList.remove("show");
+      }
+      
+      // For statistics modal:
+      const statsModal = document.getElementById("statsModal");
+      if (!statsModal.classList.contains("hidden") &&
+          !statsModal.querySelector(".modal-content").contains(event.target)) {
+        closeStatsModal();
+      }
+      
+      // For detail (more info) modal:
+      const detailModal = document.getElementById("detailModal");
+      if (!detailModal.classList.contains("hidden") &&
+          !detailModal.querySelector(".modal-content").contains(event.target)) {
+        closeModal();
+      }
+      
+      // For display filter sidebar:
+      const sidebar = document.getElementById("sidebar");
+      if (sidebar.classList.contains("translate-x-0") &&
+          !sidebar.contains(event.target) &&
+          !event.target.closest('[onclick="toggleSidebar()"]')) {
+        toggleSidebar();
+      }
+    });
+    
+    window.onload = function() {
+      // Theme check
+      if (localStorage.getItem('theme') === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      const btn = document.getElementById('themeToggle');
+      btn.textContent = document.documentElement.classList.contains('dark') ? "☀" : "🌙";
+      
+      // Apply colors to existing rows and build proto scheme list.
+      applyColorsToExistingRows();
+      populateProtoScheme();
+    };
+  </script>
+</body>
+</html>
